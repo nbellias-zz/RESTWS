@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<!--
+To change this license header, choose License Headers in Project Properties.
+To change this template file, choose Tools | Templates
+and open the template in the editor.
+-->
+<html>
+    <head>
+        <title>Greeting List</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <script
+            src="https://code.jquery.com/jquery-3.3.1.min.js"
+            integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8="
+        crossorigin="anonymous"></script>
+    </head>
+    <body>
+        <div>Greetings</div>
+        <h4 id="status"></h4>
+        <h5 id="loaded_n_total"></h5>
+        <input type="text" id="content" placeholder="Say a greeting"/>
+        <br>
+        <input type="file" id="image" />
+        <br>
+        <button id="saveBtn" title="Submit & Save">Save</button>
+        <progress id="uploadProgressBar"></progress>
+        <hr>
+        <table id="greetings" border="1" width="10" cellspacing="1" cellpadding="5">
+            <caption><p>List of Greetings</p></caption>
+            <thead>
+                <tr bgcolor="lightblue">
+                    <th>ID</th>
+                    <th>CONTENT</th>
+                    <th>IMAGE</th>
+                </tr>
+            </thead>
+            <tbody>
+            </tbody>
+        </table>
+        <button type="button" id="deleteBtn">Delete Row</button>
+        <button type="button" id="editBtn">Edit Row</button>
+        <br>
+
+        <script>
+
+            let selected = "";
+            let imgStr = ""; // imgStr <-- in this var you will have the file data in Base64 format
+
+            function uploadProgressHandler(event) {
+                $("#loaded_n_total").html("Uploaded " + event.loaded + " bytes of " + event.total);
+                var percent = (event.loaded / event.total) * 100;
+                var progress = Math.round(percent);
+                $("#uploadProgressBar").html(progress + " percent na ang progress");
+                $("#uploadProgressBar").css("width", progress + "%");
+                $("#status").html(progress + "% uploaded... please wait");
+            }
+
+            function loadHandler(event) {
+                $("#status").html(event.target.responseText);
+                $("#uploadProgressBar").css("width", "0%");
+            }
+
+            function errorHandler(event) {
+                $("#status").html("Upload Failed");
+            }
+
+            function abortHandler(event) {
+                $("#status").html("Upload Aborted");
+            }
+
+            $.ajax({
+                url: 'http://localhost:8080/restws/greetings/',
+                type: 'GET',
+                success: function (response) {
+                    let trHTML = "";
+                    $.each(response, function (i) {
+                        trHTML += "<tr id='" + response[i].id + "'><td>" + response[i].id + "</td><td>" + response[i].content + "</td><td><img src='" + response[i].image + "' width='100px'/></td></tr>";
+                    });
+                    $('#greetings').append(trHTML);
+                    if (trHTML === "") {
+                        $("#status").html("No greetings so far...");
+                    }
+                },
+                error: function () {
+                    $("#status").html("Internal Server Error. Try again later");
+                }
+            });
+
+            $("table tbody").on('click', 'td', function () {
+                let clickedRow = $(this).closest('tr');
+                let id = clickedRow.attr('id');
+
+                if (!clickedRow.attr('bgcolor')) {
+                    clickedRow.attr('bgcolor', 'orange');
+                } else {
+                    clickedRow.attr('bgcolor', '');
+                }
+                //console.log("clicked " + id);
+                selected = id;
+            });
+
+            $("#image").change(function () {
+                let fileReader = new FileReader();
+                fileReader.onload = function () {
+                    imgStr = fileReader.result;
+                };
+                fileReader.readAsDataURL($('#image').prop('files')[0]);
+            });
+
+            $("#saveBtn").click(function () {
+                let contentString = $("#content").val();
+                let myjson = {"id": 0, "content": contentString, "image": imgStr}; // id although 0 increments at web service level, imgStr is filled up at line 92 above
+                //console.log(JSON.stringify(myjson));
+                $.ajax({
+                    url: 'http://localhost:8080/restws/greetings',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify(myjson),
+                    xhr: function () {
+                        var xhr = new window.XMLHttpRequest();
+                        xhr.upload.addEventListener("progress",
+                                uploadProgressHandler,
+                                false
+                                );
+                        xhr.addEventListener("load", loadHandler, false);
+                        xhr.addEventListener("error", errorHandler, false);
+                        xhr.addEventListener("abort", abortHandler, false);
+
+                        return xhr;
+                    },
+                    success: function (result) {
+                        $("#status").html(result);
+                        $('#greetings tbody').html(""); // Reset tbody of greetings table
+                        // Fill up tbody of table
+                        $.ajax({
+                            url: 'http://localhost:8080/restws/greetings/',
+                            type: 'GET',
+                            success: function (response) {
+                                let trHTML = "";
+                                $.each(response, function (i) {
+                                    trHTML += "<tr id='" + response[i].id + "'><td>" + response[i].id + "</td><td>" + response[i].content + "</td><td><img src='" + response[i].image + "' width='100px'/></td></tr>";
+                                });
+                                $('#greetings').append(trHTML);
+                                if (trHTML === "") {
+                                    $("#status").html("No greetings so far...");
+                                }
+                            },
+                            error: function () {
+                                $("#status").html("Internal Server Error. Try again later");
+                            }
+                        });
+                        //$("#greetings").append("<tr><td id='myId'>" + myjson.id + "</td><td>" + myjson.content + "</td><td><img src='" + myjson.image + "' width='100px'/></td></tr>");
+                    },
+                    error: function (error) {
+                        console.log(error);
+                        $("h4").html("Error " + cnt);
+                    }
+                });
+            });
+
+            $("#deleteBtn").click(function () {
+                if (selected !== "") {
+                    let id = selected;
+                    // REMOVE FROM DATABASE
+                    $.ajax({url: 'http://localhost:8080/restws/greetings/' + id,
+                        type: 'DELETE',
+                        contentType: 'application/json',
+                        success: function (result) {
+                            $("#status").html(result);
+                            $('#greetings tbody').html(""); // Reset tbody of greetings table
+                            // Fill up tbody of table
+                            $.ajax({
+                                url: 'http://localhost:8080/restws/greetings/',
+                                type: 'GET',
+                                success: function (response) {
+                                    let trHTML = "";
+                                    $.each(response, function (i) {
+                                        trHTML += "<tr id='" + response[i].id + "'><td>" + response[i].id + "</td><td>" + response[i].content + "</td><td><img src='" + response[i].image + "' width='100px'/></td></tr>";
+                                    });
+                                    $('#greetings').append(trHTML);
+                                    if (trHTML === "") {
+                                        $("#status").html("No greetings so far...");
+                                    }
+                                },
+                                error: function () {
+                                    $("#status").html("Internal Server Error. Try again later");
+                                }
+                            });
+                            //$("#greetings").parents('tr').first().remove();
+                        },
+                        error: function () {
+                            $("#status").html("Internal Server Error");
+                        }
+                    });
+                    // REMOVE FROM TABLE
+                    $(this).parents("tr").remove();
+                }
+
+            });
+
+            $("#editBtn").click(function () {
+                if (selected !== "") {
+                    let idx = selected;
+                    window.location.href = "profile.html?id=" + idx;
+                }
+            });
+
+        </script>
+    </body>
+</html>

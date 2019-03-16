@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<!--
+To change this license header, choose License Headers in Project Properties.
+To change this template file, choose Tools | Templates
+and open the template in the editor.
+-->
+<html>
+    <head>
+        <title>Profile</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <script
+            src="https://code.jquery.com/jquery-3.3.1.min.js"
+            integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8="
+        crossorigin="anonymous"></script>
+    </head>
+    <body>
+        <div>Greeting Profile</div>
+        <h4 id="status"></h4>
+        <h5 id="loaded_n_total"></h5>
+        <h5 id="id"></h5>
+        <input type="text" id="content" placeholder="Say a greeting"/>
+        <br>
+        <br>
+        <img src="" width='100px' id="img" />
+        <br>
+        <hr>
+        <input type="file" id="image" />
+        <br>
+        <button id="saveBtn" title="Submit & Save">Save</button>
+        <br>
+        <progress id="uploadProgressBar"></progress>
+        <hr>
+        <a href="./">Home</a>
+        <hr>
+        <script>
+            let imgStr = ""; // imgStr <-- in this var you will have the file data in Base64 format
+
+            function uploadProgressHandler(event) {
+                $("#loaded_n_total").html("Uploaded " + event.loaded + " bytes of " + event.total);
+                var percent = (event.loaded / event.total) * 100;
+                var progress = Math.round(percent);
+                $("#uploadProgressBar").html(progress + " percent na ang progress");
+                $("#uploadProgressBar").css("width", progress + "%");
+                $("#status").html(progress + "% uploaded... please wait");
+            }
+
+            function loadHandler(event) {
+                $("#status").html(event.target.responseText);
+                $("#uploadProgressBar").css("width", "0%");
+            }
+
+            function errorHandler(event) {
+                $("#status").html("Upload Failed");
+            }
+
+            function abortHandler(event) {
+                $("#status").html("Upload Aborted");
+            }
+
+            $.urlParam = function (name) {
+                let results = new RegExp('[\?&]' + name + '=([^&#]*)').exec(window.location.href);
+                if (results === null) {
+                    return null;
+                }
+                return decodeURI(results[1]) || 0;
+            }
+
+            $("#id").html($.urlParam('id'));
+
+            $.ajax({
+                url: 'http://localhost:8080/restws/greetings/' + $.urlParam('id'),
+                type: 'GET',
+                contentType: 'application/json',
+                success: function (response) {
+                    console.log(response);
+                    $.each(response, function () {
+                        $("#id").html(response.id);
+                        $("#content").val(response.content);
+                        imgStr = response.image;
+                        $("#img").attr("src", imgStr);
+                    });
+                },
+                error: function () {
+                    $("#status").html("Internal Server Error. Try again later");
+                }
+            });
+
+            $("#image").change(function () {
+                let fileReader = new FileReader();
+                fileReader.onload = function () {
+                    imgStr = fileReader.result;
+                };
+                fileReader.readAsDataURL($('#image').prop('files')[0]);
+            });
+
+            $("#saveBtn").click(function () {
+                let contentString = $("#content").val();
+                let myjson = {"id": $.urlParam('id'), "content": contentString, "image": imgStr}; // imgStr is filled up at line 92 above
+                //console.log(JSON.stringify(myjson));
+                $.ajax({
+                    url: 'http://localhost:8080/restws/greetings/' + $.urlParam('id'),
+                    type: 'PUT',
+                    contentType: 'application/json',
+                    data: JSON.stringify(myjson),
+                    xhr: function () {
+                        var xhr = new window.XMLHttpRequest();
+                        xhr.upload.addEventListener("progress",
+                                uploadProgressHandler,
+                                false
+                                );
+                        xhr.addEventListener("load", loadHandler, false);
+                        xhr.addEventListener("error", errorHandler, false);
+                        xhr.addEventListener("abort", abortHandler, false);
+
+                        return xhr;
+                    },
+                    success: function (result) {
+                        $("#status").html(result);
+                        $("#id").html(myjson.id);
+                        $("#content").val(myjson.content);
+                        $("#img").attr("src", myjson.image);
+                    },
+                    error: function () {
+                        $("h4").html("Error " + cnt);
+                    }
+                });
+            });
+        </script>
+    </body>
+</html>
